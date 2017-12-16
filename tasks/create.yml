@@ -1,0 +1,206 @@
+# file: roles/aws.infra.ansible/tasks/aws_infra_create.yml
+---
+
+#---------------------------------------------------
+#  VPC
+#---------------------------------------------------
+- name: Create a AWS VPC with a public subnet
+  ec2_vpc_net:
+    name:        "{{ vpc_name }}"
+    region:      "{{ aws_region }}"
+    cidr_block:  "{{ cidr_block }}"
+    dns_support: true
+    tags:        "{{ vpc_resource_tags }}"    
+  register: vpc
+  tags:
+    - vpc_create
+
+- name: debug module.
+  debug: 
+    var: vpc
+
+- set_fact:
+      aws_vpc_id: "{{ vpc.vpc.id }}"
+
+- name: debug module.
+  debug: 
+    var: aws_vpc_id
+
+#---------------------------------------------------
+#  Create Subnet
+#---------------------------------------------------
+- name: Create subnet 
+  ec2_vpc_subnet:
+    state:  present
+    cidr:   10.0.0.0/20
+    vpc_id: "{{ aws_vpc_id }}"
+    az:     "{{ az }}"
+    region: "{{ aws_region }}"
+    tags:   "{{ subnet_resource_tags }}"    
+  register: subnet
+  tags:
+    - vpc_create
+
+- set_fact:
+      aws_subnet_id: "{{ subnet.subnet.id }}"
+
+#---------------------------------------------------
+#  IGW
+#---------------------------------------------------
+- name: Create IGW
+  ec2_vpc_igw:
+    state:  present
+    vpc_id: "{{ aws_vpc_id }}"
+    region: "{{ aws_region }}"
+    tags: "{{ igw_resource_tags }}"
+  register: igw
+  tags:
+    - vpc_create
+
+- name: debug module.
+  debug: 
+    var: igw
+
+- set_fact:
+      aws_igw_id: "{{ igw.gateway_id }}"
+
+#---------------------------------------------------
+#  Route Table
+#---------------------------------------------------
+- name: Set up public subnet route table
+  ec2_vpc_route_table:
+    vpc_id: "{{ aws_vpc_id }}"
+    region: "{{ aws_region }}"
+    tags:   "{{ route_resource_tags }}"
+    subnets:
+      - "{{ aws_subnet_id }}"
+    routes:
+      - dest: 0.0.0.0/0
+        gateway_id: "{{ aws_igw_id }}"
+  register: rt
+
+- name: debug module.
+  debug: 
+    var: rt
+
+# - set_fact:
+#       route_table_id: "{{ rt }}"
+
+#---------------------------------------------------
+#  NACL
+#---------------------------------------------------
+# - name: "Remove the ingress and egress rules - defaults to deny all"
+#   ec2_vpc_nacl:
+#     vpc_id: "{{ aws_vpc_id }}"
+#     name: "{{ nacl_name }}"
+#     region: "{{ aws_region }}"
+#   register: nacl
+
+# - name: debug module.
+#   debug: 
+#     var: nacl
+
+# - set_fact:
+#       route_table_id: "{{ rt }}"
+
+#---------------------------------------------------
+#  Security Groups
+#---------------------------------------------------
+- name: Security group
+  ec2_group:
+    description: EC2 security group
+    name:   "{{ sg_name }}"
+    vpc_id: "{{ aws_vpc_id }}"
+    region: "{{ aws_region }}"
+    tags: "{{ sg_resource_tags }}"
+    rules:
+      - proto: tcp
+        from_port: 80
+        to_port: 80
+        cidr_ip: 0.0.0.0/0
+      - proto: tcp
+        from_port: 22
+        to_port: 22
+        cidr_ip: 0.0.0.0/0
+      - proto: tcp
+        from_port: 443
+        to_port: 443
+        cidr_ip: 0.0.0.0/0
+      - proto: tcp
+        from_port: 8080
+        to_port: 8080
+        cidr_ip: 0.0.0.0/0
+    rules_egress:
+      - proto: all
+        from_port: all
+        to_port: all
+        cidr_ip: 0.0.0.0/0
+  register: sg
+
+- name: debug module.
+  debug: 
+    var: sg
+
+# - set_fact:
+#       route_table_id: "{{ sg }}"
+
+
+#---------------------------------------------------
+#  SSH Key
+#---------------------------------------------------
+- name: Check for existing key and remove
+  ec2_key: name="{{ workshop_prefix }}-private-key" region="{{ aws_region }}" state=absent
+  tags:
+    - vpc_create
+
+- name: Create EC2 keypair
+  ec2_key: name="{{ workshop_prefix }}-private-key" region="{{ aws_region }}" state=present
+  register: ssh_key
+  tags:
+    - vpc_create
+
+- debug: 
+    var: ssh_key
+  tags:
+    - vpc_create
+
+- name: Create ssh keypair
+  copy: 
+    content: "{{ ssh_key.key.private_key }}"
+    dest:    "{{ ssh_key_path }}/{{ workshop_prefix }}-private-key"
+    mode:    0400
+  tags:
+    - vpc_create
+
+#---------------------------------------------------
+#  EC2 Master
+#---------------------------------------------------
+- name: Launch EC2 Instance
+  ec2:
+    wait: yes
+    region:           "{{ aws_region }}"
+    image:            "{{ ec2_ami }}"
+    key_name:         "{{ ec2_keypair }}"
+    group_id:         "{{ sg.group_id }}"
+    instance_type:    "{{ ec2_instance_type }}"
+    assign_public_ip: "{{ ec2_public_ip }}"
+    vpc_subnet_id:    "{{ aws_subnet_id }}"
+    instance_tags:    "{{ ec2_instance_tag }}"
+    exact_count:      "{{ ec2_exact_count }}"    
+    count_tag:
+      Name:           "{{ workshop_prefix + '-master-count-tag' + item }}"
+    volumes:
+      - device_name: /dev/xvda
+        volume_type: gp2
+        volume_size: 15
+        delete_on_termination: true
+  with_sequence: count="{{ ec2_sequence }}"
+  register: ec2_instance
+  tags:
+    - vpc_create
+
+- pause:
+    seconds: 20
+
+
+

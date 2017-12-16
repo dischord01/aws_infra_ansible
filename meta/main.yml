@@ -1,0 +1,17 @@
+# file: roles/aws.infra.ansible/meta/main.yml
+---
+galaxy_info:
+  author: Brad Sollar
+  description: Create and Delete AWS VPC, Subnets, Security Groups, NACL, EC2 Instances. 
+  company: Red Hat
+  license: MIT
+  min_ansible_version: 1.9
+  platforms:
+  - name: EL
+    versions:
+    - all
+  galaxy_tags:
+    - AWS
+    - VPC
+    - EC2
+dependencies:

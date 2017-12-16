@@ -1,0 +1,54 @@
+# file: roles/aws.infra.ansible/vars/main.yml
+---
+#####################################################
+# VPC Vars:
+#####################################################
+vpc_name:          "{{ workshop_prefix }}-vpc"
+aws_region:        "{{ region }}"
+cidr_block:        10.0.0.0/16
+aws_vpc_state:     "{{ vpc_state }}" # destroy
+vpc_resource_tags: { "DeleteTag": "{{ workshop_prefix }}-{{ owner_email }}", "Name": "{{ workshop_prefix }}-vpc" }
+
+#####################################################
+# Subnet Vars:
+#####################################################
+subnet_resource_tags: { "DeleteTag": "{{ workshop_prefix }}-{{ owner_email }}", "Name": "{{ workshop_prefix }}-subnet" }
+
+#####################################################
+# Route Vars:
+#####################################################
+route_resource_tags:  { "DeleteTag": "{{ workshop_prefix }}-{{ owner_email }}", "Name": "{{ workshop_prefix }}-route" }
+az: "{{ zone }}"
+
+#####################################################
+# IGW Vars:
+#####################################################
+igw_resource_tags:  { "DeleteTag": "{{ workshop_prefix }}-{{ owner_email }}", "Name": "{{ workshop_prefix }}-igw" }
+
+#####################################################
+# SecurityGroup Vars:
+#####################################################
+sg_resource_tags:  { "DeleteTag": "{{ workshop_prefix }}-{{ owner_email }}", "Name": "{{ workshop_prefix }}-sg" }
+sg_name:           "{{ workshop_prefix }}-sg"
+
+#####################################################
+# NACL Vars:
+#####################################################
+nacl_name:        "{{ workshop_prefix }}-nacl"
+
+#####################################################
+# SSH Key Vars:
+#####################################################
+ssh_key_path: "{{ lookup('env','HOME') }}"
+
+#####################################################
+# EC2 Vars:
+#####################################################
+ec2_exact_count: 1
+ec2_public_ip:   yes
+ec2_instance_type: "{{ master_instance_type }}"  
+ec2_sequence:      "{{ number_master_nodes | default(1) }}"
+ec2_keypair:       "{{ workshop_prefix }}-private-key"
+ec2_ami:           "{{ ami_id }}"
+ec2_instance_tag:  { "DeleteTag": "{{ workshop_prefix }}-{{ owner_email }}", "Name": "{{ workshop_prefix + '-ec2-master' + item }}", "expiration_date": "12/15/2017", "owner_email": "bsollar@redhat.com" }
+

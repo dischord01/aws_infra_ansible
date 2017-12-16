@@ -1,0 +1,10 @@
+# file: roles/aws.infra.ansible/tasks/main.yml
+---
+
+#####################################################
+# VPC Create / Destroy:
+#####################################################
+- include_tasks: "{{ aws_vpc_state }}.yml"
+
+
+
